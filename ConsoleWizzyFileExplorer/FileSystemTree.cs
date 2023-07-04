@@ -16,16 +16,20 @@ public sealed class FileSystemTree
     {
         _outputFileName = $"{Guid.NewGuid()}.csv";
         var stopwatch = Stopwatch.StartNew();
+
         LetWizTreeWriteFileSystemNodesToFile(tree_of_directory_path);
         Console.WriteLine($"WizTree time: {stopwatch.Elapsed}");
         stopwatch.Restart();
+
         ParseFileSystemNodesFromFile();
         File.Delete(_outputFileName);
         Console.WriteLine($"Parse and delete file: {stopwatch.Elapsed}");
         stopwatch.Restart();
+
         BuildFileSystemNodeTree();
         Console.WriteLine($"Build node tree: {stopwatch.Elapsed}");
         stopwatch.Restart();
+
         Console.WriteLine($"Nodes: {_nodes!.Length}");
     }
 
@@ -35,7 +39,7 @@ public sealed class FileSystemTree
     {
         var deepestNestedNode = default(FileSystemNode);
         var deepestDepth = 0;
-        foreach (var node in _nodes)
+        foreach (var node in _nodes!)
         {
             var depth = 0;
             var parent = node.Parent;
@@ -156,16 +160,20 @@ public class FileSystemNode
         if (segmentIndex is -1) { return false; }
         segmentIndex += 3;
 
+        var size = default(long);
+        var allocated = default(long);
+        var modified = default(DateTimeOffset);
+        var attribute = default(ushort);
         var result =
             text.TryGetSpanToCharAndAdvanceIndex('"', out var fullNameSegment, ref fullNameIndex) &&
             text.TryGetSegment(out var sizeSegment, ref segmentIndex) &&
-            long.TryParse(sizeSegment, out var size) &&
+            long.TryParse(sizeSegment, out size) &&
             text.TryGetSegment(out var allocatedSegment, ref segmentIndex) &&
-            long.TryParse(allocatedSegment, out var allocated) &&
+            long.TryParse(allocatedSegment, out allocated) &&
             text.TryGetSegment(out var modifiedSegment, ref segmentIndex) &&
-            DateTimeOffset.TryParse(modifiedSegment, out var modified) &&
+            DateTimeOffset.TryParse(modifiedSegment, out modified) &&
             text.TryGetSegment(out var attributesSegment, ref segmentIndex) &&
-            ushort.TryParse(attributesSegment, out var attribute);
+            ushort.TryParse(attributesSegment, out attribute);
         
         if (!result) { return false; }
 
@@ -226,27 +234,25 @@ public class FileSystemNode
 
 public class FileSystemFile : FileSystemNode
 {
-    private FileInfo? _info;
-
     public FileSystemFile( string full_name, long size, long allocated, DateTimeOffset last_modified_time, FileSystemAttributes attributes) :
         base(full_name, size, allocated, last_modified_time, attributes)
     {
 
     }
 
+    private FileInfo? _info;
     protected FileInfo Info => _info ??= new(FullName);
 }
 
 public class FileSystemDirectory : FileSystemNode
 {
-    private DirectoryInfo? _info;
-
     public FileSystemDirectory(string full_name, long size, long allocated, DateTimeOffset last_modified_time, FileSystemAttributes attributes) :
         base(full_name, size, allocated, last_modified_time, attributes)
     {
 
     }
 
+    private DirectoryInfo? _info;
     protected DirectoryInfo Info => _info ??= new(FullName);
 }
 
@@ -259,31 +265,4 @@ public enum FileSystemAttributes : ushort
     System = 4,
     Archive = 32,
     Compressed = 2048,
-}
-
-public static class ReadonlySpanExtensions
-{
-    public static bool TryGetSpanOverLineAndAdvanceIndex(this ReadOnlySpan<char> text, out ReadOnlySpan<char> line, ref int index)
-    {
-        if (!TryGetSpanToCharAndAdvanceIndex(text, '\r', out line, ref index)) { return false; }
-
-        ++index;
-        return true;
-    }
-
-    public static bool TryGetSegment(this ReadOnlySpan<char> text, out ReadOnlySpan<char> segment, ref int index) => TryGetSpanToCharAndAdvanceIndex(text, ',', out segment, ref index);
-
-    public static bool TryGetSpanToCharAndAdvanceIndex(this ReadOnlySpan<char> text, char c, out ReadOnlySpan<char> segment, ref int index)
-    {
-        var endIndex = text[index..].IndexOf(c);
-        if (endIndex is -1)
-        {
-            segment = default;
-            return false;
-        }
-
-        segment = text[index..(index + endIndex)];
-        index += endIndex + 1;
-        return true;
-    }
 }
