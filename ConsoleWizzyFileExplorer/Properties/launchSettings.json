@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "ConsoleWizzyFileExplorer": {
+      "commandName": "Project",
+      "commandLineArgs": "C:\\Development"
+    }
+  }
+}

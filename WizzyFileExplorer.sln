@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.6.33815.320
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleWizzyFileExplorer", "ConsoleWizzyFileExplorer\ConsoleWizzyFileExplorer.csproj", "{DEEA2FF7-6A00-4A00-9416-63146B8F0DA1}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{DEEA2FF7-6A00-4A00-9416-63146B8F0DA1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DEEA2FF7-6A00-4A00-9416-63146B8F0DA1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DEEA2FF7-6A00-4A00-9416-63146B8F0DA1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DEEA2FF7-6A00-4A00-9416-63146B8F0DA1}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {929DD233-2D25-43DE-8964-B7540D91B922}
+	EndGlobalSection
+EndGlobal
