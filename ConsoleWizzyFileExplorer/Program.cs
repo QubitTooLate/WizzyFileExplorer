@@ -3,9 +3,9 @@
 using ConsoleWizzyFileExplorer;
 using System;
 
-var tree = new FileSystemTree("""C:\""");
-Console.WriteLine(tree.GetText(tree.GetDeepestNestedNode()).ToString());
-//RecursiveWriteFileSystemTree(tree.Root, 0);
+var tree = new FileSystemTree("""C:\Development\CSharp\Test""");
+Console.WriteLine(tree.GetDeepestNestedNode().FullName);
+RecursiveWriteFileSystemTree(tree.Root, 0);
 Console.ReadKey();
 
 return;
@@ -17,7 +17,7 @@ void RecursiveWriteFileSystemTree(FileSystemNode item, int spaces)
         foreach (var child in item.Children)
         {
             Console.Write(new string(' ', spaces));
-            Console.WriteLine(tree.GetText(child).ToString());
+            Console.WriteLine(child.FullName);
             RecursiveWriteFileSystemTree(child, spaces + 4);
         }
     }

@@ -10,7 +10,6 @@ public sealed class FileSystemTree
     private const string WizTreePath = """C:\Program Files\WizTree\WizTree64.exe""";
 
     private readonly string _outputFileName;
-    private string? _text;
     private FileSystemNode[]? _nodes;
 
     public FileSystemTree(string tree_of_directory_path)
@@ -73,8 +72,8 @@ public sealed class FileSystemTree
 
     private ReadOnlySpan<char> ReadWizTreeFile(out int lineCount)
     {
-        _text = File.ReadAllText(_outputFileName!);
-        var textSpan = _text.AsSpan();
+        var text = File.ReadAllText(_outputFileName!);
+        var textSpan = text.AsSpan();
         lineCount = CountReturnsInText(textSpan);
         return textSpan;
 
@@ -102,55 +101,9 @@ public sealed class FileSystemTree
         var index = 0;
         while (true)
         {
-            var nameIndex = index + 1;
-            if (!TryGetSpanOverLineAndAdvanceIndex(text, out var line, ref index)) { break; }
-
-            var segmentIndex = line[1..].IndexOf('"');
-            if (segmentIndex is -1) { continue; }
-            var nameLength = segmentIndex;
-            segmentIndex += 3;
-
-            _ = TryGetSegment(line, out var size, ref segmentIndex);
-            _ = TryGetSegment(line, out var allocated, ref segmentIndex);
-            _ = TryGetSegment(line, out var modified, ref segmentIndex);
-            _ = TryGetSegment(line, out var attributes, ref segmentIndex);
-
-            var item = new FileSystemNode(
-                nameIndex,
-                nameLength,
-                long.Parse(size),
-                long.Parse(allocated),
-                DateTimeOffset.Parse(modified),
-                (FileSystemAttributes)uint.Parse(attributes)
-            );
-
-            _nodes[i++] = item;
-        }
-
-        return;
-
-        static bool TryGetSpanOverLineAndAdvanceIndex(ReadOnlySpan<char> text, out ReadOnlySpan<char> line, ref int index)
-        {
-            if (!TryGetSpanToCharAndAdvanceIndex(text, '\r', out line, ref index)) { return false; }
-
-            ++index;
-            return true;
-        }
-
-        static bool TryGetSegment(ReadOnlySpan<char> text, out ReadOnlySpan<char> segment, ref int index) => TryGetSpanToCharAndAdvanceIndex(text, ',', out segment, ref index);
-
-        static bool TryGetSpanToCharAndAdvanceIndex(ReadOnlySpan<char> text, char c, out ReadOnlySpan<char> segment, ref int index)
-        {
-            var endIndex = text[index..].IndexOf(c);
-            if (endIndex is -1)
-            {
-                segment = default;
-                return false;
-            }
-
-            segment = text[index..(index + endIndex)];
-            index += endIndex + 1;
-            return true;
+            if (!text.TryGetSpanOverLineAndAdvanceIndex(out var line, ref index)) { break; }
+            if (!FileSystemNode.TryParse(line, out var node)) { continue; }
+            _nodes[i++] = node!;
         }
     }
 
@@ -165,14 +118,14 @@ public sealed class FileSystemTree
 
         void RecursiveBuildFileSystemNodeTree(ref int index, FileSystemNode root)
         {
-            var rootPath = GetText(root);
+            var rootPath = root.FullName;
 
             while (++index < _nodes.Length)
             {
                 var child = _nodes[index];
                 child.Parent = root;
 
-                var path = GetText(child);
+                var path = child.FullName;
                 if (!path.StartsWith(rootPath))
                 {
                     --index;
@@ -190,25 +143,115 @@ public sealed class FileSystemTree
             }
         }
     }
-
-    public ReadOnlySpan<char> GetText(FileSystemNode node) => _text.AsSpan()[node.NameIndex..(node.NameIndex + node.NameLength)];
 }
 
-public sealed record class FileSystemNode(
-    int NameIndex,
-    int NameLength,
-    long Size,
-    long Allocated,
-    DateTimeOffset Modified,
-    FileSystemAttributes Attributes
-)
+public class FileSystemNode
 {
+    public static bool TryParse(ReadOnlySpan<char> text, out FileSystemNode? node)
+    {
+        node = null;
+        var fullNameIndex = 1;
+
+        var segmentIndex = text[1..].IndexOf('"');
+        if (segmentIndex is -1) { return false; }
+        segmentIndex += 3;
+
+        var result =
+            text.TryGetSpanToCharAndAdvanceIndex('"', out var fullNameSegment, ref fullNameIndex) &&
+            text.TryGetSegment(out var sizeSegment, ref segmentIndex) &&
+            long.TryParse(sizeSegment, out var size) &&
+            text.TryGetSegment(out var allocatedSegment, ref segmentIndex) &&
+            long.TryParse(allocatedSegment, out var allocated) &&
+            text.TryGetSegment(out var modifiedSegment, ref segmentIndex) &&
+            DateTimeOffset.TryParse(modifiedSegment, out var modified) &&
+            text.TryGetSegment(out var attributesSegment, ref segmentIndex) &&
+            ushort.TryParse(attributesSegment, out var attribute);
+        
+        if (!result) { return false; }
+
+        var isDirectory = fullNameSegment[^1] is '\\';
+        if (isDirectory)
+        {
+            node = new FileSystemDirectory(
+                new string(fullNameSegment),
+                size,
+                allocated,
+                modified,
+                (FileSystemAttributes)attribute
+            );
+        }
+        else
+        {
+            node = new FileSystemFile(
+                new string(fullNameSegment),
+                size,
+                allocated,
+                modified,
+                (FileSystemAttributes)attribute
+            );
+        }
+
+        return true;
+    }
+
+    public FileSystemNode(
+        string full_name,
+        long size,
+        long allocated,
+        DateTimeOffset last_modified_time,
+        FileSystemAttributes attributes
+    )
+    {
+        FullName = full_name;
+        Size = size;
+        Allocated = allocated;
+        LastModifiedTime = last_modified_time;
+        Attributes = attributes;
+    }
+
+    public string FullName { get; }
+    
+    public long Size { get; protected set; }
+    
+    public long Allocated { get; protected set; }
+    
+    public DateTimeOffset LastModifiedTime { get; protected set; }
+    
+    public FileSystemAttributes Attributes { get; protected set; }
+    
     public FileSystemNode? Parent { get; set; }
+    
     public List<FileSystemNode>? Children { get; set; }
 }
 
+public class FileSystemFile : FileSystemNode
+{
+    private FileInfo? _info;
+
+    public FileSystemFile( string full_name, long size, long allocated, DateTimeOffset last_modified_time, FileSystemAttributes attributes) :
+        base(full_name, size, allocated, last_modified_time, attributes)
+    {
+
+    }
+
+    protected FileInfo Info => _info ??= new(FullName);
+}
+
+public class FileSystemDirectory : FileSystemNode
+{
+    private DirectoryInfo? _info;
+
+    public FileSystemDirectory(string full_name, long size, long allocated, DateTimeOffset last_modified_time, FileSystemAttributes attributes) :
+        base(full_name, size, allocated, last_modified_time, attributes)
+    {
+
+    }
+
+    protected DirectoryInfo Info => _info ??= new(FullName);
+}
+
 [Flags]
-public enum FileSystemAttributes : uint
+public enum FileSystemAttributes : ushort
 {
     None = 0,
     ReadOnly = 1,
@@ -216,4 +259,31 @@ public enum FileSystemAttributes : uint
     System = 4,
     Archive = 32,
     Compressed = 2048,
+}
+
+public static class ReadonlySpanExtensions
+{
+    public static bool TryGetSpanOverLineAndAdvanceIndex(this ReadOnlySpan<char> text, out ReadOnlySpan<char> line, ref int index)
+    {
+        if (!TryGetSpanToCharAndAdvanceIndex(text, '\r', out line, ref index)) { return false; }
+
+        ++index;
+        return true;
+    }
+
+    public static bool TryGetSegment(this ReadOnlySpan<char> text, out ReadOnlySpan<char> segment, ref int index) => TryGetSpanToCharAndAdvanceIndex(text, ',', out segment, ref index);
+
+    public static bool TryGetSpanToCharAndAdvanceIndex(this ReadOnlySpan<char> text, char c, out ReadOnlySpan<char> segment, ref int index)
+    {
+        var endIndex = text[index..].IndexOf(c);
+        if (endIndex is -1)
+        {
+            segment = default;
+            return false;
+        }
+
+        segment = text[index..(index + endIndex)];
+        index += endIndex + 1;
+        return true;
+    }
 }
